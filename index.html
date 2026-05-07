@@ -1,0 +1,966 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Critter Quest — Animal Adventure!</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; }
+  html, body { width: 100%; height: 100%; overflow: hidden; font-family: 'Comic Sans MS', 'Marker Felt', cursive, sans-serif; touch-action: manipulation; }
+  body { background: #87ceeb; position: relative; }
+
+  /* === SCREENS === */
+  .screen { position: absolute; inset: 0; display: none; flex-direction: column; }
+  .screen.active { display: flex; }
+
+  /* === BACKGROUNDS PER HABITAT === */
+  .bg-menu     { background: linear-gradient(180deg, #ffd6e8 0%, #ffe9b8 50%, #b9e8a3 100%); }
+  .bg-garden   { background: linear-gradient(180deg, #87ceeb 0%, #b9e8a3 60%, #6dbf4a 100%); }
+  .bg-meadow   { background: linear-gradient(180deg, #87ceeb 0%, #c0e8ff 40%, #6ec5e9 70%, #4a9c2e 100%); }
+  .bg-forest   { background: linear-gradient(180deg, #2d5a3d 0%, #4a8c5a 50%, #6d4c2a 100%); }
+  .bg-jungle   { background: linear-gradient(180deg, #2d5a3d 0%, #5fae5a 40%, #88c46f 80%, #4a7c2a 100%); }
+  .bg-ocean    { background: linear-gradient(180deg, #00bcd4 0%, #006994 50%, #003a5a 100%); }
+  .bg-night    { background: linear-gradient(180deg, #0a0a3a 0%, #2a1a5a 50%, #4a2a3a 100%); }
+
+  /* === HUD === */
+  #hud {
+    position: absolute; top: 8px; left: 8px; right: 8px;
+    display: flex; justify-content: space-between; align-items: flex-start;
+    z-index: 50; pointer-events: none; gap: 8px; flex-wrap: wrap;
+  }
+  .hud-pill {
+    background: rgba(255,255,255,0.92); border: 3px solid #ff8fab; border-radius: 18px;
+    padding: 6px 14px; font-size: 20px; font-weight: bold; color: #d63384;
+    box-shadow: 0 3px 0 rgba(0,0,0,0.1); display: flex; align-items: center; gap: 6px;
+    pointer-events: auto;
+  }
+  .hud-pill.stars  { border-color: #ff9800; color: #e65100; }
+  .hud-pill.quest  { border-color: #6f42c1; color: #6f42c1; max-width: 70vw; font-size: 16px; line-height: 1.2; }
+  .hud-pill button { background: none; border: none; font: inherit; color: inherit; cursor: pointer; padding: 0; }
+
+  /* === FLOATING UI BUTTONS === */
+  .corner-btn {
+    position: absolute; width: 56px; height: 56px; border-radius: 50%;
+    background: rgba(255,255,255,0.95); border: 3px solid #6f42c1;
+    font-size: 28px; cursor: pointer; z-index: 50;
+    box-shadow: 0 4px 0 rgba(0,0,0,0.15);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .corner-btn:active { transform: translateY(2px); box-shadow: 0 2px 0 rgba(0,0,0,0.15); }
+  .btn-back   { top: 12px; left: 12px; }
+  .map-btn {
+    background: linear-gradient(180deg, #fff 0%, #ffe082 100%);
+    border: 3px solid #6f42c1; border-radius: 22px;
+    padding: 8px 16px 8px 12px; font-family: inherit;
+    font-size: 18px; font-weight: bold; color: #6f42c1;
+    box-shadow: 0 4px 0 rgba(0,0,0,0.15); cursor: pointer;
+    display: flex; align-items: center; gap: 6px;
+    pointer-events: auto;
+  }
+  .map-btn:active { transform: translateY(2px); box-shadow: 0 2px 0 rgba(0,0,0,0.15); }
+  .btn-book   { bottom: 12px; left: 12px; }
+  .btn-mini   { bottom: 12px; left: 80px; border-color: #ff9800; }
+  .btn-home   { bottom: 12px; right: 12px; }
+
+  /* === BUGS / ANIMALS === */
+  .critter {
+    position: absolute; cursor: pointer; transition: transform 0.1s;
+    z-index: 5; filter: drop-shadow(2px 4px 4px rgba(0,0,0,0.25));
+    will-change: transform; line-height: 1;
+  }
+  .critter:active { transform: scale(0.85) !important; }
+  .critter.golden { filter: drop-shadow(0 0 12px gold) drop-shadow(2px 4px 4px rgba(0,0,0,0.25)); animation: glow 1s ease-in-out infinite alternate; }
+  @keyframes glow { from { filter: drop-shadow(0 0 8px gold) drop-shadow(2px 4px 4px rgba(0,0,0,0.25)); } to { filter: drop-shadow(0 0 20px gold) drop-shadow(2px 4px 4px rgba(0,0,0,0.25)); } }
+
+  /* === SPARKLE / FLOATERS === */
+  .sparkle { position: absolute; font-size: 50px; pointer-events: none; animation: sparkleAnim 0.8s ease-out forwards; z-index: 60; }
+  @keyframes sparkleAnim { 0%{transform:scale(0.5) rotate(0);opacity:1;} 100%{transform:scale(2) rotate(360deg);opacity:0;} }
+  .floater { position: absolute; font-size: 36px; font-weight: bold; color: #ffeb3b; text-shadow: 2px 2px 0 #d63384,-1px -1px 0 #d63384,1px -1px 0 #d63384,-1px 1px 0 #d63384; pointer-events: none; animation: floatUp 1.2s ease-out forwards; z-index: 60; }
+  @keyframes floatUp { 0%{transform:translateY(0) scale(1);opacity:1;} 100%{transform:translateY(-100px) scale(1.5);opacity:0;} }
+  .confetti { position: absolute; width: 12px; height: 12px; pointer-events: none; animation: fall 2s linear forwards; z-index: 60; }
+  @keyframes fall { to { transform: translateY(110vh) rotate(720deg); opacity: 0; } }
+
+  /* === TOAST / CELEBRATION === */
+  #toast {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%) scale(0);
+    background: white; border: 5px solid #ff8fab; border-radius: 25px;
+    padding: 20px 40px; font-size: 32px; font-weight: bold; color: #d63384;
+    box-shadow: 0 8px 0 #d63384; z-index: 80; pointer-events: none;
+    transition: transform 0.3s cubic-bezier(0.5,1.6,0.5,1); text-align: center; max-width: 80vw;
+  }
+  #toast.show { transform: translate(-50%,-50%) scale(1); }
+
+  /* === MENU SCREEN === */
+  #menu-screen { padding: 20px; align-items: center; justify-content: flex-start; padding-top: 30px; overflow-y: auto; }
+  #menu-screen h1 {
+    font-size: clamp(36px, 8vw, 64px); color: #d63384;
+    text-shadow: 3px 3px 0 white, -1px -1px 0 white, 1px -1px 0 white, -1px 1px 0 white;
+    text-align: center; margin-bottom: 8px;
+  }
+  .subtitle { font-size: clamp(16px, 3.5vw, 22px); color: #6f42c1; background: rgba(255,255,255,0.8); padding: 6px 16px; border-radius: 14px; margin-bottom: 20px; }
+  .habitat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 14px; width: 100%; max-width: 600px; margin-bottom: 20px; }
+  .habitat-card {
+    aspect-ratio: 1; border-radius: 24px; border: 5px solid white;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    cursor: pointer; box-shadow: 0 6px 0 rgba(0,0,0,0.2); position: relative;
+    font-size: 18px; font-weight: bold; color: white; text-shadow: 2px 2px 0 rgba(0,0,0,0.4);
+    transition: transform 0.1s; padding: 8px;
+  }
+  .habitat-card:active:not(.locked) { transform: translateY(3px); box-shadow: 0 3px 0 rgba(0,0,0,0.2); }
+  .habitat-card.locked { opacity: 0.7; cursor: not-allowed; }
+  .habitat-card .icon { font-size: 60px; margin-bottom: 8px; }
+  .habitat-card .star-cost { background: rgba(0,0,0,0.4); padding: 3px 10px; border-radius: 10px; font-size: 14px; margin-top: 4px; }
+  .habitat-card .lock-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.4); border-radius: 19px; display: flex; align-items: center; justify-content: center; font-size: 50px; }
+  .menu-actions { display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; }
+  .menu-btn {
+    background: linear-gradient(180deg, #ffeb3b 0%, #ff9800 100%);
+    border: 4px solid white; border-radius: 30px;
+    padding: 14px 28px; font-size: 22px; font-weight: bold; color: #d63384;
+    font-family: inherit; cursor: pointer;
+    box-shadow: 0 5px 0 #d63384, 0 6px 12px rgba(0,0,0,0.2);
+  }
+  .menu-btn:active { transform: translateY(3px); box-shadow: 0 2px 0 #d63384; }
+  .menu-btn.purple { background: linear-gradient(180deg,#e1bee7 0%, #9c27b0 100%); color: white; box-shadow: 0 5px 0 #4a148c, 0 6px 12px rgba(0,0,0,0.2); }
+  .menu-btn.purple:active { box-shadow: 0 2px 0 #4a148c; }
+
+  /* === STICKER BOOK === */
+  #book-screen { background: linear-gradient(180deg, #ffe9b8 0%, #ffd6e8 100%); padding: 20px; padding-top: 80px; overflow-y: auto; }
+  #book-screen h2 { font-size: clamp(28px, 6vw, 48px); color: #d63384; text-align: center; margin-bottom: 16px; text-shadow: 2px 2px 0 white; }
+  .book-section { margin-bottom: 24px; max-width: 700px; margin-left: auto; margin-right: auto; }
+  .book-section h3 { font-size: 22px; color: #6f42c1; margin-bottom: 10px; padding-left: 8px; }
+  .sticker-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 10px; background: rgba(255,255,255,0.7); border-radius: 20px; padding: 14px; }
+  .sticker {
+    aspect-ratio: 1; background: white; border-radius: 14px; display: flex;
+    flex-direction: column; align-items: center; justify-content: center;
+    font-size: 40px; border: 3px dashed #ccc; position: relative; cursor: pointer;
+  }
+  .sticker.found { border: 3px solid #ffeb3b; background: linear-gradient(135deg,#fff 0%, #fff8e1 100%); }
+  .sticker.locked { font-size: 30px; color: #aaa; filter: grayscale(1) brightness(1.5); opacity: 0.4; }
+  .sticker .count { position: absolute; bottom: 2px; right: 4px; font-size: 12px; color: #d63384; font-weight: bold; }
+  .sticker .name { font-size: 11px; color: #555; margin-top: 2px; font-weight: bold; }
+
+  /* === HABITAT VISUAL EXTRAS === */
+  .cloud { position: absolute; font-size: 50px; opacity: 0.85; pointer-events: none; animation: drift 50s linear infinite; }
+  @keyframes drift { from { transform: translateX(-100px); } to { transform: translateX(110vw); } }
+  .sun, .moon { position: absolute; top: 25px; right: 25px; font-size: 70px; animation: spin 30s linear infinite; pointer-events: none; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .ground-strip { position: absolute; bottom: 0; left: 0; right: 0; height: 70px; pointer-events: none; }
+  .strip-grass { background: linear-gradient(180deg, transparent 0%, #4a9c2e 30%, #387a23 100%); }
+  .strip-sand  { background: linear-gradient(180deg, transparent 0%, #f4d77c 30%, #c9a548 100%); }
+  .strip-water { background: linear-gradient(180deg, transparent 0%, rgba(0,180,210,0.6) 50%, rgba(0,80,120,0.7) 100%); }
+  .strip-dirt  { background: linear-gradient(180deg, transparent 0%, #8b5a2b 30%, #5e3a18 100%); }
+
+  /* === MINI-GAME UI === */
+  #mini-screen { background: linear-gradient(180deg, #fff8e1 0%, #ffe082 100%); padding: 20px; padding-top: 80px; align-items: center; overflow-y: auto; }
+  #mini-screen h2 { font-size: clamp(26px, 6vw, 42px); color: #d63384; text-align: center; margin-bottom: 12px; text-shadow: 2px 2px 0 white; }
+  .mini-instructions { font-size: 20px; color: #6f42c1; background: white; padding: 10px 20px; border-radius: 14px; margin-bottom: 20px; max-width: 90vw; text-align: center; box-shadow: 0 4px 0 rgba(0,0,0,0.1); }
+  .mini-area { width: 100%; max-width: 600px; }
+  .memory-grid { display: grid; gap: 10px; justify-content: center; }
+  .memory-card {
+    aspect-ratio: 1; background: linear-gradient(135deg, #6f42c1 0%, #9c27b0 100%);
+    border: 4px solid white; border-radius: 16px; display: flex; align-items: center; justify-content: center;
+    font-size: clamp(30px, 7vw, 50px); cursor: pointer; box-shadow: 0 4px 0 rgba(0,0,0,0.2);
+    color: white; transition: transform 0.3s;
+    transform-style: preserve-3d;
+  }
+  .memory-card.flipped { background: white; transform: rotateY(180deg); }
+  .memory-card.flipped span { transform: rotateY(180deg); }
+  .memory-card.matched { background: linear-gradient(135deg,#a8e6a3 0%,#5dbb63 100%); pointer-events: none; }
+
+  .count-display {
+    background: white; border: 5px solid #6f42c1; border-radius: 20px;
+    padding: 30px; min-height: 200px; display: flex; align-items: center; justify-content: center;
+    flex-wrap: wrap; gap: 10px; margin-bottom: 20px; font-size: 50px;
+  }
+  .count-options { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  .count-btn {
+    background: linear-gradient(180deg, #fff 0%, #ffd6e8 100%);
+    border: 4px solid #ff8fab; border-radius: 18px;
+    padding: 14px; font-size: 32px; font-weight: bold; color: #d63384;
+    cursor: pointer; box-shadow: 0 4px 0 #d63384; font-family: inherit;
+  }
+  .count-btn:active { transform: translateY(2px); box-shadow: 0 2px 0 #d63384; }
+  .count-btn.wrong { background: linear-gradient(180deg, #ffcdd2 0%, #ef9a9a 100%); }
+  .count-btn.right { background: linear-gradient(180deg, #c8e6c9 0%, #66bb6a 100%); }
+
+  .mini-tabs { display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; justify-content: center; }
+  .mini-tab {
+    background: white; border: 3px solid #6f42c1; border-radius: 20px;
+    padding: 8px 18px; font-size: 18px; font-weight: bold; color: #6f42c1;
+    cursor: pointer; font-family: inherit;
+  }
+  .mini-tab.active { background: #6f42c1; color: white; }
+
+  /* === FACT POPUP === */
+  #fact-popup {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%) scale(0);
+    background: white; border: 5px solid #ff9800; border-radius: 25px;
+    padding: 24px; max-width: 85vw; width: 350px; z-index: 90;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+    transition: transform 0.3s cubic-bezier(0.5,1.6,0.5,1);
+    text-align: center;
+  }
+  #fact-popup.show { transform: translate(-50%,-50%) scale(1); }
+  #fact-popup .fact-emoji { font-size: 80px; margin-bottom: 10px; }
+  #fact-popup .fact-name { font-size: 28px; color: #d63384; font-weight: bold; margin-bottom: 8px; }
+  #fact-popup .fact-text { font-size: 18px; color: #444; line-height: 1.4; margin-bottom: 14px; }
+  #fact-popup .fact-new { background: #ffeb3b; color: #d63384; padding: 4px 12px; border-radius: 10px; font-weight: bold; display: inline-block; margin-bottom: 8px; font-size: 14px; }
+  #fact-popup button {
+    background: linear-gradient(180deg,#ffeb3b 0%, #ff9800 100%);
+    border: 3px solid white; border-radius: 20px;
+    padding: 10px 24px; font-size: 20px; font-weight: bold; color: #d63384;
+    font-family: inherit; cursor: pointer; box-shadow: 0 4px 0 #d63384;
+  }
+  #fact-popup button:active { transform: translateY(2px); box-shadow: 0 2px 0 #d63384; }
+
+  /* === QUEST COMPLETE BANNER === */
+  #quest-banner {
+    position: absolute; top: -150px; left: 50%; transform: translateX(-50%);
+    background: linear-gradient(180deg, #ffeb3b 0%, #ff9800 100%);
+    border: 5px solid white; border-radius: 25px;
+    padding: 16px 30px; font-size: 24px; font-weight: bold; color: #d63384;
+    z-index: 70; transition: top 0.5s cubic-bezier(0.5,1.6,0.5,1);
+    box-shadow: 0 8px 0 #d63384; text-align: center;
+  }
+  #quest-banner.show { top: 80px; }
+
+  /* utilities */
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<!-- ============ MENU ============ -->
+<div class="screen active bg-menu" id="menu-screen">
+  <h1>🦋 Critter Quest 🐞</h1>
+  <div class="subtitle">Catch animals • Collect stickers • Earn stars!</div>
+
+  <div class="habitat-grid" id="habitat-grid"></div>
+
+  <div class="menu-actions">
+    <button class="menu-btn" onclick="openBook()">📖 Sticker Book</button>
+    <button class="menu-btn purple" onclick="openMini()">🎮 Mini Games</button>
+  </div>
+
+  <div style="margin-top: 16px; font-size: 16px; color: #6f42c1; background: rgba(255,255,255,0.8); padding: 8px 14px; border-radius: 12px;">
+    ⭐ Stars: <span id="menu-stars">0</span> &nbsp;•&nbsp; 📚 Found: <span id="menu-found">0</span>
+  </div>
+  <button onclick="resetAll()" style="margin-top: 12px; background: rgba(255,255,255,0.6); border: 2px solid #999; border-radius: 14px; padding: 6px 14px; font-size: 14px; color: #555; font-family: inherit; cursor: pointer;">Start Fresh</button>
+</div>
+
+<!-- ============ HABITAT PLAY ============ -->
+<div class="screen" id="play-screen">
+  <div id="hud">
+    <button class="map-btn" onclick="goMenu()">🗺️ Map</button>
+    <div class="hud-pill">🫙 <span id="play-score">0</span></div>
+    <div class="hud-pill stars">⭐ <span id="play-stars">0</span></div>
+    <div class="hud-pill quest" id="play-quest">Quest...</div>
+  </div>
+
+  <div id="play-world"></div>
+
+  <div id="quest-banner">Quest Complete! +1 ⭐</div>
+</div>
+
+<!-- ============ STICKER BOOK ============ -->
+<div class="screen" id="book-screen">
+  <button class="corner-btn btn-back" onclick="goMenu()">🏠</button>
+  <h2>📖 My Sticker Book</h2>
+  <div id="book-content"></div>
+</div>
+
+<!-- ============ MINI GAMES ============ -->
+<div class="screen" id="mini-screen">
+  <button class="corner-btn btn-back" onclick="goMenu()">🏠</button>
+  <h2>🎮 Mini Games</h2>
+  <div class="mini-tabs">
+    <button class="mini-tab active" data-mini="memory" onclick="switchMini('memory')">🧠 Memory Match</button>
+    <button class="mini-tab" data-mini="count" onclick="switchMini('count')">🔢 Count the Critters</button>
+  </div>
+  <div class="mini-instructions" id="mini-instructions">Match the pairs!</div>
+  <div class="mini-area" id="mini-area"></div>
+</div>
+
+<!-- ============ POPUPS ============ -->
+<div id="toast"></div>
+
+<div id="fact-popup">
+  <div class="fact-emoji" id="fact-emoji">🐞</div>
+  <div class="fact-new" id="fact-new">✨ NEW DISCOVERY! ✨</div>
+  <div class="fact-name" id="fact-name"></div>
+  <div class="fact-text" id="fact-text"></div>
+  <button onclick="closeFact()">Yay!</button>
+</div>
+
+<script>
+// =============================================================
+// DATA
+// =============================================================
+const HABITATS = {
+  garden: {
+    name: 'Garden', icon: '🌻', bgClass: 'bg-garden', stripClass: 'strip-grass',
+    decor: ['☁️','☁️','☀️'], decorClass: ['cloud','cloud','sun'],
+    animals: [
+      { id:'ladybug',     emoji:'🐞',  name:'Ladybug',     fact:'Ladybugs eat tiny aphids on plants. Each one can eat 50 a day!' },
+      { id:'butterfly',   emoji:'🦋',  name:'Butterfly',   fact:'Butterflies taste with their FEET! Yes, their feet.' },
+      { id:'bee',         emoji:'🐝',  name:'Honeybee',    fact:'Bees do a wiggle dance to tell each other where flowers are.' },
+      { id:'caterpillar', emoji:'🐛',  name:'Caterpillar', fact:'A caterpillar will turn into a butterfly or a moth!' },
+      { id:'snail',       emoji:'🐌',  name:'Snail',       fact:'A snail carries its house on its back wherever it goes.' },
+      { id:'ant',         emoji:'🐜',  name:'Ant',         fact:'Ants can lift things 50 times heavier than them. Super strong!' },
+      { id:'beetle',      emoji:'🪲',  name:'Beetle',      fact:'There are more kinds of beetles than any other animal on Earth.' },
+      { id:'cricket',     emoji:'🦗',  name:'Cricket',     fact:'Crickets sing by rubbing their wings together. Chirp chirp!' },
+    ],
+    rare: { id:'gold_ladybug', emoji:'🐞', name:'Golden Ladybug', fact:'WOW! A super rare golden ladybug. Magical luck for you!' },
+  },
+  meadow: {
+    name: 'Meadow Pond', icon: '🪷', bgClass: 'bg-meadow', stripClass: 'strip-water',
+    decor: ['☁️','☁️','☀️'], decorClass: ['cloud','cloud','sun'],
+    animals: [
+      { id:'frog',     emoji:'🐸',  name:'Frog',        fact:'Frogs can jump 20 times their own body length. Boing!' },
+      { id:'fish',     emoji:'🐟',  name:'Little Fish',  fact:'Fish breathe with gills, not lungs like us.' },
+      { id:'turtle',   emoji:'🐢',  name:'Turtle',      fact:'Some turtles can live longer than 100 years.' },
+      { id:'duck',     emoji:'🦆',  name:'Duck',        fact:'Ducks have waterproof feathers — water rolls right off!' },
+      { id:'swan',     emoji:'🦢',  name:'Swan',        fact:'Swans pair up and stay together for many years.' },
+      { id:'dragonfly',emoji:'🪰',  name:'Dragonfly',   fact:'Dragonflies can fly UP, DOWN, sideways, and even backwards!' },
+      { id:'beaver',   emoji:'🦫',  name:'Beaver',      fact:'Beavers build dams from sticks to make their cozy homes.' },
+      { id:'otter',    emoji:'🦦',  name:'Otter',       fact:'Otters hold hands while sleeping so they don\'t float away!' },
+    ],
+    rare: { id:'rainbow_fish', emoji:'🐠', name:'Rainbow Fish', fact:'A rare rainbow fish! Every scale shines a different color.' },
+  },
+  forest: {
+    name: 'Whispering Forest', icon: '🌳', bgClass: 'bg-forest', stripClass: 'strip-dirt',
+    decor: ['☁️','☁️','☀️'], decorClass: ['cloud','cloud','sun'],
+    animals: [
+      { id:'hedgehog', emoji:'🦔',  name:'Hedgehog',    fact:'Hedgehogs roll into a prickly ball when they are scared.' },
+      { id:'squirrel', emoji:'🐿️', name:'Squirrel',    fact:'Squirrels hide thousands of nuts and remember most of them!' },
+      { id:'deer',     emoji:'🦌',  name:'Deer',        fact:'Deer can run as fast as a car on a small road.' },
+      { id:'fox',      emoji:'🦊',  name:'Fox',         fact:'Foxes use their fluffy tails like a blanket to stay warm.' },
+      { id:'rabbit',   emoji:'🐰',  name:'Rabbit',      fact:'Rabbits can turn their ears in different directions to listen.' },
+      { id:'bear',     emoji:'🐻',  name:'Bear',        fact:'Bears sleep all winter long. We call that hibernating.' },
+      { id:'raccoon',  emoji:'🦝',  name:'Raccoon',     fact:'Raccoons wash their food in water before they eat it.' },
+      { id:'owl',      emoji:'🦉',  name:'Owl',         fact:'Owls can turn their head almost all the way around.' },
+    ],
+    rare: { id:'white_stag', emoji:'🦌', name:'White Stag', fact:'A magical white stag! In stories he brings good wishes.' },
+  },
+  jungle: {
+    name: 'Jungle Canopy', icon: '🌴', bgClass: 'bg-jungle', stripClass: 'strip-grass',
+    decor: ['🌴','🌿','☀️'], decorClass: ['cloud','cloud','sun'],
+    animals: [
+      { id:'monkey',   emoji:'🐵',  name:'Monkey',      fact:'Monkeys use their tails like an extra hand to grab branches!' },
+      { id:'parrot',   emoji:'🦜',  name:'Parrot',      fact:'Parrots can copy words. Some learn over a hundred!' },
+      { id:'tiger',    emoji:'🐅',  name:'Tiger',       fact:'Every tiger has different stripes — like a fingerprint!' },
+      { id:'sloth',    emoji:'🦥',  name:'Sloth',       fact:'Sloths are SO slow that tiny plants grow on their fur.' },
+      { id:'snake',    emoji:'🐍',  name:'Snake',       fact:'Snakes smell with their tongue. Flicker flicker!' },
+      { id:'gecko',    emoji:'🦎',  name:'Gecko',       fact:'Geckos have sticky toes and can walk upside down.' },
+      { id:'elephant', emoji:'🐘',  name:'Elephant',    fact:'Elephants use their trunk like a hand AND a hose!' },
+      { id:'toucan',   emoji:'🦜',  name:'Toucan',      fact:'Toucans have huge colorful beaks for picking fruit.' },
+    ],
+    rare: { id:'rainbow_macaw', emoji:'🦜', name:'Rainbow Macaw', fact:'The rarest jungle bird, with feathers of every color!' },
+  },
+  ocean: {
+    name: 'Coral Reef', icon: '🐚', bgClass: 'bg-ocean', stripClass: 'strip-sand',
+    decor: ['🪸','🌊','🐚'], decorClass: ['cloud','cloud','sun'],
+    animals: [
+      { id:'tropfish', emoji:'🐠',  name:'Tropical Fish',fact:'Coral reef fish come in every color of the rainbow.' },
+      { id:'octopus',  emoji:'🐙',  name:'Octopus',     fact:'Octopuses have THREE hearts and can change color!' },
+      { id:'crab',     emoji:'🦀',  name:'Crab',        fact:'Crabs walk sideways on the sand. Side-shuffle!' },
+      { id:'seaturtle',emoji:'🐢',  name:'Sea Turtle',  fact:'Baby sea turtles run to the ocean as soon as they hatch.' },
+      { id:'lobster',  emoji:'🦞',  name:'Lobster',     fact:'Lobsters use their big claws to crack open shells.' },
+      { id:'pufferfish',emoji:'🐡', name:'Puffer Fish', fact:'Puffer fish puff up like a balloon when scared!' },
+      { id:'squid',    emoji:'🦑',  name:'Squid',       fact:'Squids squirt black ink to escape from danger.' },
+      { id:'whale',    emoji:'🐋',  name:'Whale',       fact:'Blue whales are the biggest animals that ever lived.' },
+    ],
+    rare: { id:'mermaid_seahorse', emoji:'🦄', name:'Magic Seahorse', fact:'A legendary seahorse said to grant wishes!' },
+  },
+};
+
+const HABITAT_ORDER = ['garden','meadow','forest','jungle','ocean'];
+const HABITAT_COLORS = {
+  garden: '#6dbf4a', meadow: '#4a9c8e', forest: '#3a5a30',
+  jungle: '#2d7a3a', ocean: '#1976d2',
+};
+const HABITAT_UNLOCK_COST = { garden: 0, meadow: 5, forest: 12, jungle: 22, ocean: 35 };
+
+// =============================================================
+// STATE (with localStorage persistence)
+// =============================================================
+const SAVE_KEY = 'critter-quest-save-v1';
+const defaultState = () => ({
+  stars: 0,
+  unlocked: { garden: true, meadow: false, forest: false, jungle: false, ocean: false },
+  collection: {}, // { animalId: count }
+  rareFound: {},  // { rareId: true }
+  questsCompleted: 0,
+  currentQuest: null,
+  habitatPlays: { garden: 0, meadow: 0, forest: 0, jungle: 0, ocean: 0 },
+});
+let S = loadState();
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem(SAVE_KEY);
+    if (raw) return Object.assign(defaultState(), JSON.parse(raw));
+  } catch (e) {}
+  return defaultState();
+}
+function saveState() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(S)); } catch (e) {} }
+function resetAll() {
+  if (confirm('Start over? All stickers and stars will be reset.')) {
+    S = defaultState(); saveState(); renderMenu();
+  }
+}
+
+// =============================================================
+// AUDIO
+// =============================================================
+let audioCtx;
+function initAudio() { try { audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} }
+function tone(freq, duration, type='sine', volume=0.18) {
+  if (!audioCtx) return;
+  try {
+    const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    o.type = type; o.frequency.value = freq;
+    g.gain.setValueAtTime(volume, audioCtx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+    o.connect(g); g.connect(audioCtx.destination);
+    o.start(); o.stop(audioCtx.currentTime + duration);
+  } catch (e) {}
+}
+function playCatch() { tone(523,0.1,'sine',0.15); setTimeout(()=>tone(784,0.15,'sine',0.15),80); }
+function playFanfare() { [523,659,784,1047].forEach((n,i)=>setTimeout(()=>tone(n,0.2,'triangle',0.18),i*100)); }
+function playWrong() { tone(220,0.3,'sawtooth',0.1); }
+function playStar() { [659,784,988,1175].forEach((n,i)=>setTimeout(()=>tone(n,0.15,'sine',0.16),i*70)); }
+
+// =============================================================
+// SCREEN ROUTING
+// =============================================================
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+function goMenu() { stopHabitatLoops(); showScreen('menu-screen'); renderMenu(); }
+function openBook() { showScreen('book-screen'); renderBook(); }
+function openMini() { showScreen('mini-screen'); switchMini('memory'); }
+
+// =============================================================
+// MENU
+// =============================================================
+function renderMenu() {
+  const grid = document.getElementById('habitat-grid');
+  grid.innerHTML = '';
+  HABITAT_ORDER.forEach(id => {
+    const h = HABITATS[id];
+    const isUnlocked = S.unlocked[id];
+    const cost = HABITAT_UNLOCK_COST[id];
+    const card = document.createElement('div');
+    card.className = 'habitat-card' + (isUnlocked ? '' : ' locked');
+    card.style.background = `linear-gradient(135deg, ${HABITAT_COLORS[id]} 0%, ${HABITAT_COLORS[id]}cc 100%)`;
+    card.innerHTML = `
+      <div class="icon">${h.icon}</div>
+      <div>${h.name}</div>
+      ${isUnlocked ? '' : `<div class="star-cost">⭐ ${cost} to unlock</div>`}
+      ${isUnlocked ? '' : `<div class="lock-overlay">🔒</div>`}
+    `;
+    card.addEventListener('click', () => {
+      if (isUnlocked) startHabitat(id);
+      else if (S.stars >= cost) {
+        S.stars -= cost; S.unlocked[id] = true; saveState();
+        playStar(); toast(`🎉 ${h.name} unlocked!`);
+        renderMenu();
+      } else {
+        toast(`Need ${cost - S.stars} more ⭐ to unlock!`);
+      }
+    });
+    grid.appendChild(card);
+  });
+  document.getElementById('menu-stars').textContent = S.stars;
+  document.getElementById('menu-found').textContent = Object.keys(S.collection).length + Object.keys(S.rareFound).length;
+}
+
+// =============================================================
+// HABITAT PLAY
+// =============================================================
+let playState = null;
+
+function startHabitat(habitatId) {
+  initAudio();
+  const h = HABITATS[habitatId];
+  const screen = document.getElementById('play-screen');
+  // Set background
+  screen.className = 'screen active ' + h.bgClass;
+
+  // Build world decor
+  const world = document.getElementById('play-world');
+  world.innerHTML = '';
+  h.decor.forEach((emoji, i) => {
+    const d = document.createElement('div');
+    d.className = h.decorClass[i];
+    d.textContent = emoji;
+    if (h.decorClass[i] === 'cloud') {
+      d.style.top = (5 + i * 12) + '%';
+      d.style.animationDelay = -i * 17 + 's';
+    }
+    world.appendChild(d);
+  });
+  const strip = document.createElement('div');
+  strip.className = 'ground-strip ' + h.stripClass;
+  world.appendChild(strip);
+
+  // Init play state
+  S.habitatPlays[habitatId] = (S.habitatPlays[habitatId] || 0) + 1;
+  playState = {
+    habitat: habitatId,
+    score: 0,
+    critters: [],
+    spawnTimer: null,
+    moveTimer: null,
+  };
+
+  // Difficulty: more plays = faster, smaller, more
+  const plays = S.habitatPlays[habitatId];
+  playState.spawnInterval = Math.max(700, 1600 - plays * 60);
+  playState.speed = Math.min(2.5, 1 + plays * 0.15);
+  playState.critterSize = Math.max(50, 75 - plays * 2);
+
+  // Pick or generate a quest
+  if (!S.currentQuest || S.currentQuest.habitat !== habitatId || S.currentQuest.complete) {
+    S.currentQuest = makeQuest(habitatId);
+    saveState();
+  }
+  updateQuestUI();
+  document.getElementById('play-score').textContent = '0';
+  document.getElementById('play-stars').textContent = S.stars;
+
+  showScreen('play-screen');
+
+  // Start loops
+  for (let i = 0; i < 3; i++) setTimeout(spawnCritter, i * 200);
+  playState.spawnTimer = setInterval(spawnCritter, playState.spawnInterval);
+  playState.moveTimer = setInterval(moveCritters, 30);
+}
+
+function stopHabitatLoops() {
+  if (!playState) return;
+  if (playState.spawnTimer) clearInterval(playState.spawnTimer);
+  if (playState.moveTimer) clearInterval(playState.moveTimer);
+  document.querySelectorAll('.critter').forEach(c => c.remove());
+  playState = null;
+}
+
+function spawnCritter() {
+  if (!playState) return;
+  const h = HABITATS[playState.habitat];
+  let animal;
+  // 4% chance for rare
+  if (Math.random() < 0.04 && h.rare) {
+    animal = { ...h.rare, isRare: true };
+  } else {
+    animal = h.animals[Math.floor(Math.random() * h.animals.length)];
+  }
+  const el = document.createElement('div');
+  el.className = 'critter' + (animal.isRare ? ' golden' : '');
+  el.textContent = animal.emoji;
+  el.style.fontSize = playState.critterSize + 'px';
+
+  const w = window.innerWidth, h2 = window.innerHeight;
+  const startX = Math.random() * (w - 100);
+  const startY = 110 + Math.random() * (h2 - 280);
+  el.style.left = startX + 'px';
+  el.style.top = startY + 'px';
+
+  const angle = Math.random() * Math.PI * 2;
+  const speed = playState.speed * (0.6 + Math.random() * 0.7);
+  const data = {
+    el, animal,
+    x: startX, y: startY,
+    vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
+    born: Date.now(), lifespan: 8000 + Math.random() * 4000, caught: false,
+  };
+
+  el.addEventListener('pointerdown', e => { e.preventDefault(); catchCritter(data); });
+  document.getElementById('play-world').appendChild(el);
+  playState.critters.push(data);
+
+  setTimeout(() => {
+    if (!data.caught && el.parentNode) {
+      el.style.transition = 'opacity 0.5s'; el.style.opacity = '0';
+      setTimeout(() => { if (el.parentNode) el.remove(); if (playState) playState.critters = playState.critters.filter(c => c !== data); }, 500);
+    }
+  }, data.lifespan);
+}
+
+function moveCritters() {
+  if (!playState) return;
+  const w = window.innerWidth, h = window.innerHeight;
+  playState.critters.forEach(c => {
+    if (c.caught) return;
+    c.x += c.vx; c.y += c.vy;
+    if (c.x < 0 || c.x > w - 80) { c.vx *= -1; c.x = Math.max(0, Math.min(w - 80, c.x)); }
+    if (c.y < 100 || c.y > h - 130) { c.vy *= -1; c.y = Math.max(100, Math.min(h - 130, c.y)); }
+    c.el.style.left = c.x + 'px';
+    c.el.style.top = c.y + 'px';
+    const wig = Math.sin(Date.now()/200 + c.x) * 8;
+    c.el.style.transform = `rotate(${wig}deg)`;
+  });
+}
+
+function catchCritter(data) {
+  if (data.caught || !playState) return;
+  data.caught = true;
+  const r = data.el.getBoundingClientRect();
+  const cx = r.left + r.width/2, cy = r.top + r.height/2;
+
+  // FX
+  spawnSparkle(cx - 25, cy - 25);
+  spawnFloater(cx, cy, '+1');
+  data.el.style.transition = 'transform 0.3s, opacity 0.3s';
+  data.el.style.transform = 'scale(2)';
+  data.el.style.opacity = '0';
+  setTimeout(() => { if (data.el.parentNode) data.el.remove(); }, 300);
+  if (playState) playState.critters = playState.critters.filter(c => c !== data);
+  playCatch();
+
+  // Score
+  playState.score++;
+  document.getElementById('play-score').textContent = playState.score;
+
+  // Collection
+  const a = data.animal;
+  const isNew = a.isRare ? !S.rareFound[a.id] : !S.collection[a.id];
+  if (a.isRare) {
+    S.rareFound[a.id] = true;
+    S.stars += 2; // rare worth 2 stars
+    playStar();
+  } else {
+    S.collection[a.id] = (S.collection[a.id] || 0) + 1;
+  }
+
+  // Quest progress
+  let questAdvanced = false;
+  if (S.currentQuest && !S.currentQuest.complete && S.currentQuest.habitat === playState.habitat) {
+    const q = S.currentQuest;
+    if (q.type === 'catch_specific' && a.id === q.target) { q.progress++; questAdvanced = true; }
+    else if (q.type === 'catch_any') { q.progress++; questAdvanced = true; }
+    else if (q.type === 'catch_variety' && !q.found.includes(a.id)) { q.found.push(a.id); q.progress = q.found.length; questAdvanced = true; }
+    else if (q.type === 'catch_rare' && a.isRare) { q.progress = q.count; questAdvanced = true; }
+
+    if (q.progress >= q.count && !q.complete) {
+      q.complete = true; S.stars += q.reward || 1; S.questsCompleted++;
+      saveState();
+      setTimeout(() => questCompleteFX(q.reward || 1), 400);
+    } else if (questAdvanced) updateQuestUI();
+  }
+
+  saveState();
+  document.getElementById('play-stars').textContent = S.stars;
+
+  // Show fact pop on first catch of an animal type
+  if (isNew) setTimeout(() => showFact(a, true), 350);
+
+  // Periodic celebration
+  if (playState.score % 10 === 0) celebrateBig();
+}
+
+function questCompleteFX(reward) {
+  const banner = document.getElementById('quest-banner');
+  banner.textContent = `Quest Complete! +${reward} ⭐`;
+  banner.classList.add('show');
+  playFanfare();
+  burstConfetti();
+  // Spawn a new quest after a short delay
+  setTimeout(() => {
+    banner.classList.remove('show');
+    if (playState) {
+      S.currentQuest = makeQuest(playState.habitat);
+      saveState();
+      updateQuestUI();
+    }
+  }, 2200);
+}
+
+function celebrateBig() {
+  burstConfetti();
+  toast('Wow! ' + playState.score + ' caught! 🎉');
+  playFanfare();
+}
+
+function spawnSparkle(x, y) {
+  const s = document.createElement('div');
+  s.className = 'sparkle'; s.textContent = '✨';
+  s.style.left = x + 'px'; s.style.top = y + 'px';
+  document.body.appendChild(s);
+  setTimeout(() => s.remove(), 800);
+}
+function spawnFloater(x, y, text) {
+  const f = document.createElement('div');
+  f.className = 'floater'; f.textContent = text;
+  f.style.left = x + 'px'; f.style.top = y + 'px';
+  document.body.appendChild(f);
+  setTimeout(() => f.remove(), 1200);
+}
+function burstConfetti() {
+  const colors = ['#ff8fab','#ffeb3b','#6f42c1','#4caf50','#03a9f4','#ff9800','#e91e63'];
+  for (let i = 0; i < 30; i++) {
+    const c = document.createElement('div');
+    c.className = 'confetti';
+    c.style.background = colors[Math.floor(Math.random()*colors.length)];
+    c.style.left = Math.random() * 100 + 'vw';
+    c.style.top = '-20px';
+    c.style.animationDuration = (1.5 + Math.random()) + 's';
+    c.style.borderRadius = Math.random() > 0.5 ? '50%' : '0';
+    document.body.appendChild(c);
+    setTimeout(() => c.remove(), 2500);
+  }
+}
+function toast(text) {
+  const t = document.getElementById('toast');
+  t.textContent = text; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 1500);
+}
+
+// =============================================================
+// QUESTS
+// =============================================================
+function makeQuest(habitatId) {
+  const h = HABITATS[habitatId];
+  const baseLevel = Math.floor(S.questsCompleted / 3); // grows over time
+  const types = ['catch_specific', 'catch_any', 'catch_variety'];
+  if (S.questsCompleted >= 5) types.push('catch_rare');
+
+  const type = types[Math.floor(Math.random() * types.length)];
+
+  if (type === 'catch_specific') {
+    const target = h.animals[Math.floor(Math.random() * h.animals.length)];
+    const count = 3 + Math.min(5, baseLevel);
+    return { type, habitat: habitatId, target: target.id, targetName: target.name, targetEmoji: target.emoji, count, progress: 0, reward: 1, complete: false };
+  }
+  if (type === 'catch_any') {
+    const count = 8 + baseLevel * 2;
+    return { type, habitat: habitatId, count, progress: 0, reward: 1, complete: false };
+  }
+  if (type === 'catch_variety') {
+    const count = Math.min(h.animals.length, 3 + Math.floor(baseLevel / 2));
+    return { type, habitat: habitatId, count, progress: 0, found: [], reward: 2, complete: false };
+  }
+  if (type === 'catch_rare') {
+    return { type, habitat: habitatId, count: 1, progress: 0, reward: 3, complete: false };
+  }
+}
+
+function updateQuestUI() {
+  const el = document.getElementById('play-quest');
+  if (!S.currentQuest) { el.textContent = '🎯 No quest'; return; }
+  const q = S.currentQuest;
+  let label = '';
+  if (q.type === 'catch_specific') label = `🎯 Catch ${q.count} ${q.targetEmoji} ${q.targetName}s — ${q.progress}/${q.count}`;
+  else if (q.type === 'catch_any') label = `🎯 Catch ${q.count} critters — ${q.progress}/${q.count}`;
+  else if (q.type === 'catch_variety') label = `🎯 Find ${q.count} different — ${q.progress}/${q.count}`;
+  else if (q.type === 'catch_rare') label = `🎯 Find a ✨ rare critter!`;
+  el.innerHTML = label;
+}
+
+// =============================================================
+// FACT POPUP
+// =============================================================
+let factOpen = false;
+function showFact(animal, isNew) {
+  factOpen = true;
+  document.getElementById('fact-emoji').textContent = animal.emoji;
+  document.getElementById('fact-name').textContent = animal.name;
+  document.getElementById('fact-text').textContent = animal.fact;
+  document.getElementById('fact-new').style.display = isNew ? 'inline-block' : 'none';
+  document.getElementById('fact-popup').classList.add('show');
+  // Pause spawning while popup open
+  if (playState && playState.spawnTimer) { clearInterval(playState.spawnTimer); playState.spawnTimer = null; }
+}
+function closeFact() {
+  factOpen = false;
+  document.getElementById('fact-popup').classList.remove('show');
+  if (playState && !playState.spawnTimer) {
+    playState.spawnTimer = setInterval(spawnCritter, playState.spawnInterval);
+  }
+}
+
+// =============================================================
+// STICKER BOOK
+// =============================================================
+function renderBook() {
+  const root = document.getElementById('book-content');
+  root.innerHTML = '';
+  HABITAT_ORDER.forEach(id => {
+    const h = HABITATS[id];
+    const section = document.createElement('div');
+    section.className = 'book-section';
+    const grid = h.animals.map(a => {
+      const found = S.collection[a.id];
+      if (found) {
+        return `<div class="sticker found" onclick="showFact(${JSON.stringify(a).replace(/"/g,'&quot;')}, false)"><div style="font-size:38px">${a.emoji}</div><div class="name">${a.name}</div><div class="count">×${found}</div></div>`;
+      }
+      return `<div class="sticker locked"><div>❓</div><div class="name">???</div></div>`;
+    }).join('');
+    let rareHTML = '';
+    if (h.rare) {
+      const r = h.rare;
+      const found = S.rareFound[r.id];
+      if (found) rareHTML = `<div class="sticker found" style="border-color:gold;background:linear-gradient(135deg,#fff8e1,#ffd700);" onclick="showFact(${JSON.stringify(r).replace(/"/g,'&quot;')}, false)"><div style="font-size:38px">✨${r.emoji}</div><div class="name">${r.name}</div></div>`;
+      else rareHTML = `<div class="sticker locked"><div>✨</div><div class="name">???</div></div>`;
+    }
+    section.innerHTML = `<h3>${h.icon} ${h.name}</h3><div class="sticker-grid">${grid}${rareHTML}</div>`;
+    root.appendChild(section);
+  });
+}
+
+// =============================================================
+// MINI GAMES
+// =============================================================
+let currentMini = 'memory';
+
+function switchMini(name) {
+  currentMini = name;
+  document.querySelectorAll('.mini-tab').forEach(t => t.classList.toggle('active', t.dataset.mini === name));
+  if (name === 'memory') startMemoryGame();
+  else if (name === 'count') startCountGame();
+}
+
+// ----- Memory Match -----
+let memoryState = null;
+function startMemoryGame() {
+  initAudio();
+  const allAnimals = [];
+  HABITAT_ORDER.forEach(id => {
+    if (S.unlocked[id]) HABITATS[id].animals.forEach(a => allAnimals.push(a));
+  });
+  // Difficulty: more pairs as more habitats unlocked / more cleared
+  const numUnlocked = HABITAT_ORDER.filter(id => S.unlocked[id]).length;
+  const pairCount = Math.min(allAnimals.length, 4 + numUnlocked); // 5-9 pairs
+  // Pick random pairs
+  const shuffled = [...allAnimals].sort(() => Math.random() - 0.5).slice(0, pairCount);
+  const cards = [...shuffled, ...shuffled].sort(() => Math.random() - 0.5).map((a, i) => ({ id: i, animal: a, flipped: false, matched: false }));
+
+  memoryState = { cards, flipped: [], canFlip: true, matches: 0, total: pairCount };
+  document.getElementById('mini-instructions').textContent = `Match the pairs! ${pairCount} pairs to find.`;
+
+  const cols = pairCount <= 6 ? 4 : pairCount <= 8 ? 4 : 5;
+  const area = document.getElementById('mini-area');
+  area.innerHTML = `<div class="memory-grid" style="grid-template-columns: repeat(${cols}, 1fr);" id="mem-grid"></div>`;
+  const grid = document.getElementById('mem-grid');
+  cards.forEach(card => {
+    const el = document.createElement('div');
+    el.className = 'memory-card';
+    el.innerHTML = '<span>?</span>';
+    el.addEventListener('click', () => flipMemory(card, el));
+    card.el = el;
+    grid.appendChild(el);
+  });
+}
+function flipMemory(card, el) {
+  if (!memoryState.canFlip || card.flipped || card.matched) return;
+  card.flipped = true;
+  el.classList.add('flipped');
+  el.innerHTML = `<span>${card.animal.emoji}</span>`;
+  tone(440 + memoryState.flipped.length * 100, 0.1, 'sine', 0.12);
+  memoryState.flipped.push(card);
+  if (memoryState.flipped.length === 2) {
+    const [a, b] = memoryState.flipped;
+    if (a.animal.id === b.animal.id) {
+      a.matched = b.matched = true;
+      a.el.classList.add('matched'); b.el.classList.add('matched');
+      memoryState.matches++;
+      memoryState.flipped = [];
+      tone(784, 0.15, 'triangle', 0.18);
+      if (memoryState.matches === memoryState.total) {
+        setTimeout(() => {
+          S.stars++; saveState();
+          toast('Memory star earned! ⭐');
+          playStar(); burstConfetti();
+          setTimeout(startMemoryGame, 1800);
+        }, 600);
+      }
+    } else {
+      memoryState.canFlip = false;
+      setTimeout(() => {
+        a.flipped = b.flipped = false;
+        a.el.classList.remove('flipped'); b.el.classList.remove('flipped');
+        a.el.innerHTML = '<span>?</span>'; b.el.innerHTML = '<span>?</span>';
+        memoryState.flipped = []; memoryState.canFlip = true;
+      }, 900);
+    }
+  }
+}
+
+// ----- Counting Game -----
+let countState = null;
+function startCountGame() {
+  initAudio();
+  const allAnimals = [];
+  HABITAT_ORDER.forEach(id => { if (S.unlocked[id]) HABITATS[id].animals.forEach(a => allAnimals.push(a)); });
+  const animal = allAnimals[Math.floor(Math.random() * allAnimals.length)];
+  // Difficulty grows with stars
+  const maxCount = Math.min(10, 5 + Math.floor(S.stars / 5));
+  const correct = 1 + Math.floor(Math.random() * maxCount);
+
+  // Build distractors (other animals)
+  const decoys = allAnimals.filter(a => a.id !== animal.id).sort(() => Math.random() - 0.5).slice(0, 3);
+  const decoyCount = 1 + Math.floor(Math.random() * 3);
+
+  // Generate display
+  let displayHTML = '';
+  for (let i = 0; i < correct; i++) displayHTML += `<span style="font-size:${42 + Math.random()*16}px;display:inline-block;transform:rotate(${(Math.random()-0.5)*30}deg);margin:4px;">${animal.emoji}</span>`;
+  for (let i = 0; i < decoyCount; i++) {
+    const d = decoys[i % decoys.length];
+    if (d) displayHTML += `<span style="font-size:${36 + Math.random()*14}px;display:inline-block;transform:rotate(${(Math.random()-0.5)*30}deg);margin:4px;opacity:0.85;">${d.emoji}</span>`;
+  }
+  // Shuffle html spans
+  const tmp = document.createElement('div');
+  tmp.innerHTML = displayHTML;
+  const items = Array.from(tmp.children).sort(() => Math.random() - 0.5);
+  displayHTML = items.map(n => n.outerHTML).join('');
+
+  // Options: correct + 3 decoys
+  const optionSet = new Set([correct]);
+  while (optionSet.size < 4) {
+    let v = 1 + Math.floor(Math.random() * maxCount);
+    optionSet.add(v);
+  }
+  const options = [...optionSet].sort(() => Math.random() - 0.5);
+
+  countState = { correct, animal };
+  document.getElementById('mini-instructions').innerHTML = `How many ${animal.emoji} <strong>${animal.name}s</strong> do you see?`;
+  const area = document.getElementById('mini-area');
+  area.innerHTML = `
+    <div class="count-display">${displayHTML}</div>
+    <div class="count-options" id="count-options">
+      ${options.map(o => `<button class="count-btn" onclick="answerCount(${o}, this)">${o}</button>`).join('')}
+    </div>
+  `;
+}
+function answerCount(num, btn) {
+  if (num === countState.correct) {
+    btn.classList.add('right');
+    tone(784, 0.15, 'triangle', 0.18);
+    setTimeout(() => { tone(1047, 0.2, 'triangle', 0.18); }, 150);
+    S.stars++; saveState();
+    toast('Right! ⭐');
+    burstConfetti();
+    setTimeout(startCountGame, 1500);
+  } else {
+    btn.classList.add('wrong');
+    playWrong();
+    setTimeout(() => btn.classList.remove('wrong'), 800);
+  }
+}
+
+// =============================================================
+// INIT
+// =============================================================
+document.addEventListener('touchend', e => {
+  const now = Date.now();
+  if (now - (window._lastTouch || 0) <= 300) e.preventDefault();
+  window._lastTouch = now;
+}, false);
+document.addEventListener('contextmenu', e => e.preventDefault());
+
+renderMenu();
+</script>
+</body>
+</html>
